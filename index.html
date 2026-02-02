@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Boot Record (MBR) Simulator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Partition Table Simulator</h1>
+            <p>An interactive educational tool to understand MBR and GPT partition tables.</p>
+            
+            <div class="mode-selector">
+                <button id="mbrMode" class="mode-btn active">MBR (Legacy)</button>
+                <button id="gptMode" class="mode-btn">GPT (Modern)</button>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <div class="controls-section">
+                <h2 id="sectionTitle">Create Partition</h2>
+                <div class="control-panel">
+                    <div class="input-group">
+                        <label for="pName">Partition Name</label>
+                        <input type="text" id="pName" placeholder="e.g., System, Data" maxlength="30">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="pType">Filesystem Type</label>
+                        <select id="pType">
+                            <!-- MBR Options -->
+                            <optgroup label="MBR Primary Types" id="mbrTypes">
+                                <option value="07">0x07 - NTFS / exFAT</option>
+                                <option value="0B">0x0B - FAT32 (CHS)</option>
+                                <option value="0C">0x0C - FAT32 (LBA)</option>
+                                <option value="83">0x83 - Linux Native</option>
+                                <option value="82">0x82 - Linux Swap</option>
+                                <option value="05">0x05 - Extended Partition</option>
+                            </optgroup>
+                            <optgroup label="MBR Logical (inside Extended)" id="logicalTypes" style="display:none">
+                                <option value="L07">Logical: NTFS / exFAT</option>
+                                <option value="L0B">Logical: FAT32 (CHS)</option>
+                                <option value="L0C">Logical: FAT32 (LBA)</option>
+                                <option value="L83">Logical: Linux Native</option>
+                                <option value="L82">Logical: Linux Swap</option>
+                            </optgroup>
+                            <!-- GPT Options -->
+                            <optgroup label="GPT Types" id="gptTypes" style="display:none">
+                                <option value="gpt-efi">EFI System Partition</option>
+                                <option value="gpt-msft-basic">Microsoft Basic Data</option>
+                                <option value="gpt-linux">Linux Filesystem</option>
+                                <option value="gpt-linux-swap">Linux Swap</option>
+                                <option value="gpt-mac-hfs">Apple HFS+</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="pSize">Size (in Sectors)</label>
+                        <input type="number" id="pSize" value="2048" min="1" max="10000">
+                        <small id="diskInfo">Total Disk: 20,000 Sectors</small>
+                    </div>
+
+                    <div class="actions">
+                        <button id="addPartBtn" class="btn primary"><span class="btn-icon">➕</span> Add Partition</button>
+                        <button id="resetBtn" class="btn danger"><span class="btn-icon">🗑️</span> Reset Disk</button>
+                    </div>
+                </div>
+                
+                <div class="partition-list-section">
+                    <h3>Partition Manager</h3>
+                    <div id="partition-list" class="partition-list">
+                        <p class="empty-msg">No partitions created yet. Add one above!</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="visualization-section">
+                <h2>📀 Disk Map Visualization</h2>
+                <div class="disk-info-bar">
+                    <span><strong>Total:</strong> <span id="totalSectors">20,000</span> sectors (<span id="totalMB">9.77 MB</span>)</span>
+                    <span><strong>Used:</strong> <span id="usedSectors">0</span> sectors (<span id="usedMB">0 MB</span>)</span>
+                    <span><strong>Free:</strong> <span id="freeSectors">20,000</span> sectors (<span id="freeMB">9.77 MB</span>)</span>
+                    <span class="usage-percent"><span id="usagePercent">0</span>% used</span>
+                </div>
+                <div class="disk-wrapper">
+                    <div id="disk-bar" class="disk-bar">
+                        <div class="mbr-sector" title="Sector 0: MBR Code + Table">MBR</div>
+                        <!-- Partitions injected here -->
+                        <div class="free-space">Free Space</div>
+                    </div>
+                    <div class="disk-legend">
+                        <span class="legend-item"><span class="dot mbr-dot"></span> <span id="legend1">MBR</span></span>
+                        <span class="legend-item" id="gptLegend"><span class="dot gpt-dot"></span> <span id="legend2">GPT Header</span></span>
+                        <span class="legend-item" id="gptBackupLegend"><span class="dot gpt-backup-dot"></span> Backup GPT</span>
+                        <span class="legend-item" id="extendedLegend" style="display:none"><span class="dot extended-dot"></span> Extended</span>
+                        <span class="legend-item" id="logicalLegend" style="display:none"><span class="dot logical-dot"></span> Logical</span>
+                        <span class="legend-item" id="ebrLegend" style="display:none"><span class="dot ebr-dot"></span> EBR</span>
+                        <span class="legend-item"><span class="dot used-dot"></span> Allocated</span>
+                        <span class="legend-item"><span class="dot free-dot"></span> Free</span>
+                    </div>
+                </div>
+                
+                <div class="block-view-section">
+                    <div class="block-header">
+                        <h3>🧱 Block-Level View</h3>
+                        <span class="block-info">Each block = 100 sectors (51.2 KB)</span>
+                    </div>
+                    <div class="sector-ruler">
+                        <span>0</span><span>2K</span><span>4K</span><span>6K</span><span>8K</span><span>10K</span><span>12K</span><span>14K</span><span>16K</span><span>18K</span><span>20K</span>
+                    </div>
+                    <div id="block-grid" class="block-grid">
+                        <!-- Generated blocks -->
+                    </div>
+                    <div id="block-tooltip" class="block-tooltip"></div>
+                </div>
+            </div>
+
+            <div class="table-section">
+                <div class="table-header-row">
+                    <h2 id="tableTitle">📋 The 64-Byte Partition Table</h2>
+                    <div class="table-tabs" id="tableTabs">
+                        <button class="tab-btn active" data-tab="primary">Primary Table</button>
+                        <button class="tab-btn" data-tab="backup" id="backupTabBtn" style="display:none">Backup Table</button>
+                    </div>
+                </div>
+                <p class="description" id="tableDescription">
+                    The MBR creates 4 partition entries of 16 bytes each. 
+                    This table is located at offset <strong>0x1BE</strong> (446) in the first sector of the disk.
+                </p>
+                <div class="table-responsive">
+                    <table id="partition-table">
+                        <thead id="table-header">
+                            <!-- Generated by JS based on mode -->
+                        </thead>
+                        <tbody>
+                            <!-- Rows generated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="gpt-structure" class="gpt-structure" style="display:none">
+                    <h3>🗂️ GPT Disk Structure Overview</h3>
+                    <div class="gpt-layout">
+                        <div class="gpt-section protective">Protective MBR<br><small>LBA 0</small></div>
+                        <div class="gpt-section header">Primary GPT Header<br><small>LBA 1</small></div>
+                        <div class="gpt-section entries">Partition Entries<br><small>LBA 2-33</small></div>
+                        <div class="gpt-section data">Partition Data Area<br><small>LBA 34 - n</small></div>
+                        <div class="gpt-section entries-backup">Backup Entries<br><small>LBA n+1 - n+32</small></div>
+                        <div class="gpt-section header-backup">Backup Header<br><small>Last LBA</small></div>
+                    </div>
+                    <div class="gpt-order-note">
+                        <span class="primary-order">📥 Primary: Header → Entries → Data</span>
+                        <span class="backup-order">📤 Backup: Data → Entries → Header (reversed)</span>
+                    </div>
+                </div>
+                
+                <div id="mbr-structure" class="mbr-structure">
+                    <h3>🔧 MBR Sector 0 Layout (512 bytes)</h3>
+                    <div class="mbr-layout">
+                        <div class="mbr-section boot-code" title="Executable bootstrap code that loads the OS bootloader">
+                            <span class="section-label">💻 Boot Code</span>
+                            <span class="section-bytes">446 bytes</span>
+                            <span class="section-offset">0x000 - 0x1BD</span>
+                        </div>
+                        <div class="mbr-section partition-table" title="Four 16-byte partition entries">
+                            <span class="section-label">📋 Partition Table</span>
+                            <span class="section-bytes">64 bytes</span>
+                            <span class="section-offset">0x1BE - 0x1FD</span>
+                        </div>
+                        <div class="mbr-section boot-sig" title="Magic signature 0x55AA marking valid boot sector">
+                            <span class="section-label">✓ Sig</span>
+                            <span class="section-bytes">2B</span>
+                            <span class="section-offset">0x1FE</span>
+                        </div>
+                    </div>
+                    <div class="boot-code-preview" id="bootCodePreview">
+                        <h4>📟 Boot Code Preview (First 64 bytes)</h4>
+                        <div class="hex-preview" id="hexPreview">
+                            <!-- Generated by JS -->
+                        </div>
+                        <p class="boot-code-info">
+                            <strong>What does the boot code do?</strong> When the BIOS loads, it reads this 446-byte executable code into memory at address <code>0x7C00</code>. 
+                            This code then locates the active partition, loads its boot sector, and transfers control to the OS bootloader.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="explanation-panel">
+            <h3>Understanding the Structure</h3>
+            <div class="grid-info" id="info-cards">
+                <!-- Generated by JS based on mode -->
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
